@@ -1,0 +1,88 @@
+# Projekt-Manifest — Schema und Referenz.
+#
+# WARUM DAS KEIN RAG IST
+#
+# Projektgrenzen dürfen nicht unscharf aus einem Gedächtnis geholt werden.
+# Retrieval ist gut für "wie haben wir das letzte Mal gelöst?" — bei
+# "was ist in diesem Projekt verboten?" übersieht es irgendwann etwas, und
+# das ist keine Frage ob, sondern wann.
+#
+# Deshalb: Grenzen sind DEKLARATIV und werden vom Orchestrator DURCHGESETZT.
+# Ein Agent, der gegen `forbidden` verstößt, wird gestoppt — nicht erinnert.
+#
+# Eine Datei pro Projekt in diesem Verzeichnis, benannt <projekt>.yaml.
+
+# ---------------------------------------------------------------------------
+
+# Pflicht. Identifiziert das Projekt, muss dem Dateinamen entsprechen.
+project: beispiel
+
+# Pflicht. Wo der Code liegt. Relativ zum Workspace-Wurzelverzeichnis
+# oder absolut.
+repo: ~/projekte/beispiel
+
+# Freitext. Wird Agenten als Kontext mitgegeben — kurz halten, das ist
+# kein Pflichtenheft.
+description: >
+  Wofür dieses Projekt da ist, in zwei bis drei Sätzen.
+
+# --- Technische Grenzen ----------------------------------------------------
+
+stack:
+  language: swift
+  platform: ios
+  min_version: "17.0"
+
+# Abhängigkeiten, die NICHT eingebaut werden dürfen. Durchgesetzt: Ein
+# Agent, der das versucht, bricht ab und meldet sich über die Bridge.
+forbidden:
+  - firebase
+  - google-analytics
+
+# Umgekehrt: Wenn gesetzt, sind NUR diese erlaubt. Leer lassen heißt
+# "alles außer `forbidden`".
+allowed_deps: []
+
+# Ob Modelle mit Trainingsklausel arbeiten dürfen. Betroffen sind Namen,
+# die auf `-contributor` oder `-free` enden: der Rabatt ist dort mit
+# Trainingsrechten auf Prompts UND Antworten bezahlt, und Werkzeug-Ergebnisse
+# — also Dateiinhalte — zählen möglicherweise als Prompt.
+#
+# Das ist eine PROJEKTENTSCHEIDUNG, keine globale: Architekturarbeit am
+# eigenen Werkzeug ist etwas anderes als Produktcode mit Bezahlpfad.
+#
+# Anders als `style:` ist diese Grenze hart durchsetzbar — der Modellname ist
+# ein Zeichenkettenvergleich, genau wie `forbidden` ein grep auf die
+# Abhängigkeiten ist. Verstoß heißt Abbruch, nicht Erinnerung.
+trainingsklausel: verboten        # verboten | erlaubt
+
+# Pfade, die ein Agent nie anfassen darf, auch nicht lesend.
+protected_paths:
+  - .env
+  - fastlane/
+
+# --- Verhalten -------------------------------------------------------------
+
+# Welcher Harness standardmäßig arbeitet. Überschreibbar pro Aufgabe —
+# genau das ist der Hebel für den Harness-Vergleich.
+harness_default: opencode
+
+# Welche Rolle aus models.yaml. `strong` für echte Arbeit.
+role_default: strong
+
+# Ergebnis immer als PR auf einem eigenen Branch, nie direkt auf main.
+merge_policy:
+  # auto: Orchestrator merged selbst, wenn alle Checks grün sind
+  # ask:  fragt über die Bridge
+  # never: du merged von Hand
+  trivial: auto
+  default: ask
+
+# Was "grün" bedeutet. Das ist die Grundwahrheit, an der Ergebnisse
+# gemessen werden — wichtiger als jede Modellbewertung.
+checks:
+  - swift build
+  - swift test
+
+# Eigenes Tageslimit, überschreibt das globale aus models.yaml.
+budget_daily_usd: 3.00

@@ -1,0 +1,19 @@
+# Secrets — NIEMALS committen.
+# Zugangsdaten werden beim Deploy separat eingespeist, siehe README.
+.env
+.env.*
+!.env.example
+secrets/
+*.key
+*.pem
+
+# Laufzeitkram
+runs/
+*.log
+node_modules/
+__pycache__/
+.venv/
+venv/
+
+# macOS
+.DS_Store

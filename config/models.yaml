@@ -1,0 +1,221 @@
+# Rollen → Anbieter, Modelle, Harnesses.
+#
+# Modelle wechseln alle paar Monate. Deshalb bildet diese Datei ROLLEN auf
+# konkrete Modelle ab, und der Rest des Systems kennt nur die Rollen. Ein
+# Anbieterwechsel kostet eine Zeile, keinen Umbau.
+#
+# Schlüssel kommen aus der Umgebung (.env), niemals aus dieser Datei.
+#
+# Alle Zahlen unten sind gemessen, nicht geschätzt — Aufgabe, Aufbau und
+# Rohdaten in evals/harness-vergleich.md und evals/README.md.
+#
+# ---------------------------------------------------------------------------
+# STAND 2026-10-14: ALLES ÜBER CLAUDE CODE
+#
+# Jede Rolle läuft über den Harness `claude` mit dem Anthropic-Abo. Gestaffelt
+# wird über Modell UND Effort — Opus auf medium und Opus auf high sind zwei
+# Rollen, nicht eine. Der Adapter reicht `effort:` als `--effort` durch.
+#
+# Warum: Es geht um Qualität beim Coden — belegte Behauptungen, keine
+# God-Classes, keine überflüssigen Tests. Die Flash-Modelle schwächeln genau
+# dort (GLM 7/9 ohne Vertrag), und Claude Code ist mit Claude gemessen 46 %
+# günstiger und 16 % schneller als oh-my-pi mit demselben Modell. Die alte
+# Aufteilung über OpenRouter, Go-Abo und Hermes steht in der Git-Historie
+# (bis 1e7803a), samt aller Messwerte.
+#
+# Was damit von den alten Leitsätzen bleibt:
+#
+# 1. EIN TOPF. Alles zehrt am Anthropic-Abo. Mehr Kapazität durch Verteilen
+#    gibt es nicht mehr; dafür eine Abrechnung und ein Harness.
+# 2. DAS GO-ABO IST RAUS. Der Klassifizierer läuft auf Haiku im selben Topf.
+#    Die alte Sorge gilt weiter: Ist das Abo leer, fällt der Eingang mit aus.
+# 3. EIN HARNESS, vorerst. Die Regel "jeweils die bessere Paarung" ist nicht
+#    aufgehoben — die bessere Paarung für Claude IST Claude Code.
+# 4. KEIN FALLBACK. Ein Fallback im selben Topf ist nutzlos, und einen anderen
+#    gibt es gerade nicht. Ist das Abo leer, meldet die Rolle das über die
+#    Bridge und wartet. Der naheliegende zweite Topf wäre ein Anthropic-API-
+#    Schlüssel (`billing: api`, gleicher Anbieter, eigenes Kontingent).
+#
+# ABRECHNUNGSARTEN:
+#   billing: api           pro Token, landet in der Kostenaufstellung
+#   billing: subscription  vom Abo gedeckt, am Rand kostenlos
+#
+# Bei `billing: subscription` meldet Claude Code trotzdem `total_cost_usd` —
+# das ist der Listenpreis, nicht bezahltes Geld. Als Maß für den
+# Kontingentverbrauch taugt er.
+# ---------------------------------------------------------------------------
+
+roles:
+
+  # Der Eingang, und die Instanz, mit der im Alltag geredet wird. Liest
+  # Aufgabe und Projektzustand, entscheidet über Werkzeug, Rolle und Harness —
+  # mit Begründung und Kostenschätzung.
+  #
+  # ÜBER CLAUDE CODE, OBWOHL ER KEINEN HARNESS BRAUCHT. Gemessen mit
+  # identischem Klassifizierer-Prompt (2026-08):
+  #   direkter Aufruf              131 Token   (Grundlinie)
+  #   omp --no-tools --no-lsp    2.123 Token   16x
+  #   omp voller Modus          15.417 Token  118x
+  # Über Claude Code liegt der Grundblock ähnlich hoch (~17.000 Token, davon
+  # das meiste aus dem Cache). Im Abo kostet das Kontingent, kein Geld —
+  # vorerst hingenommen, damit alles über einen Weg läuft. Wird das Kontingent
+  # knapp, ist das die erste Stelle: direkter API-Aufruf mit Haiku.
+  #
+  # FESTGENAGELT. Ändert sich das Modell, ändert sich das Routing-Verhalten,
+  # und alle Bewertungen "war das der richtige nächste Schritt?" bewerten ein
+  # bewegliches Ziel. Einzige Variable bleibt die Anweisungsdatei — als Diff
+  # lesbar.
+  classifier:
+    provider: anthropic
+    model: claude-haiku-5-5
+    effort: low
+    billing: subscription
+    harness: claude
+    pinned: true
+    fallback: null
+
+  # Mechanische, eindeutig beschreibbare Arbeit: Umbenennungen über mehrere
+  # Dateien, Boilerplate, Format- und Lint-Fixes, Übersetzungen, Tests zu
+  # vorhandenem Verhalten.
+  #
+  # Haiku 5.5 auf medium, GEMESSEN 2026-10-14 (evals/README.md, Abschnitt
+  # "Claude über Claude Code"), vier Stufen je drei Läufe:
+  #   haiku-5.5   medium  11/12   0,0146 $/Erfolg
+  #   sonnet-5.5  medium  12/12   0,0967 $/Erfolg
+  #   opus-5.5    low     12/12   0,2015 $/Erfolg
+  # Der eine Fehlschlag liegt auf S, der Stufe ohne Vertrag; mit Vertrag 3/3.
+  #
+  # BEDINGUNG: Die Aufgabe trägt einen Vertrag. Ohne ihn gehört sie zu
+  # `strong`. Die Ladder misst nur Korrektheit, nicht Codequalität — ob Haiku
+  # mehr God-Classes oder überflüssige Tests baut, ist nicht gemessen.
+  #
+  # Listenpreise pro Mio. Token (ein/aus): Haiku 0,10/0,50 · Sonnet 2/10 ·
+  # Opus 4/20.
+  cheap:
+    provider: anthropic
+    model: claude-haiku-5-5
+    effort: medium
+    billing: subscription
+    harness: claude
+    fallback: null
+    candidates:
+      - { provider: anthropic, model: claude-sonnet-5-5, effort: medium, harness: claude,
+          billing: subscription, note: "12/12, 0,0967 $/Erfolg — erster Kandidat, wenn Haiku nachgebessert werden muss" }
+      - { provider: anthropic, model: claude-opus-5-5, effort: low, harness: claude,
+          billing: subscription, note: "12/12, 0,2015 $/Erfolg — doppelt so teuer wie Sonnet bei gleichem Ergebnis" }
+
+  # Normale Arbeit: Features, Debugging, alles mit klarer Zielsetzung.
+  #
+  # Opus 5.5 auf medium — das ist auch sein Standard-Effort (bei Opus 5 war es
+  # high). Opus 5.5 kostet weniger als Opus 5 (4/20 statt 5/25 $ pro Mio.).
+  #
+  # HARNESS `claude`, gemessen mit identischem Modell, Abo und Auftrag:
+  #   claude    16 s, 5 Runden, 110.255 Token ein, 0,1308 $
+  #   oh-my-pi  19 s, 6 Runden, 153.200 Token ein, 0,2431 $
+  strong:
+    provider: anthropic
+    model: claude-opus-5-5
+    effort: medium
+    billing: subscription
+    harness: claude
+    fallback: null
+
+  # Teure Arbeit: Architektur, unklare Zielsetzung, Fehler, an denen `strong`
+  # gescheitert ist. Dasselbe Modell, mehr Nachdenken.
+  heavy:
+    provider: anthropic
+    model: claude-opus-5-5
+    effort: high
+    billing: subscription
+    harness: claude
+    fallback: null
+
+  # Zweitmeinung für Reviews.
+  #
+  # Seit 2026-10-14 ebenfalls Claude, weil vorerst alles über Claude Code
+  # läuft. Damit ist `reviewer_provider_differs_from_strong` AUSGESETZT
+  # (siehe constraints): Ein Modell findet seine eigenen Fehler schlecht, die
+  # blinden Flecken sind dieselben. Gemildert, nicht behoben, durch eine
+  # frische Sitzung ohne den Verlauf des Autors und durch höheren Effort. Die
+  # Behauptungen im Review werden ohnehin durch Ausführen geprüft, nicht durch
+  # Meinung — dort zählt das Modell wenig.
+  #
+  # Rückweg, falls die Reviews sichtbar dieselben Fehler durchlassen:
+  # deepseek-v4-pro über opencode-zen, ein paar Cent im Monat (bis 1e7803a).
+  reviewer:
+    provider: anthropic
+    model: claude-opus-5-5
+    effort: high
+    billing: subscription
+    harness: claude
+    fallback: null
+
+  # Bild- und Videogenerierung. Reine Erzeugung, kein Agent.
+  #
+  # GEPRÜFT 2026-08-19 — die Frage ist entschieden, und zwar mit NEIN:
+  # Das xAI-Abo gibt Bilderzeugung NICHT programmatisch her.
+  #
+  #   omp models xai-oauth  ->  neun Modelle, KEIN Bildmodell.
+  #     grok-4.20 (non-reasoning / reasoning / multi-agent), grok-4.3,
+  #     grok-4.5, grok-4.6, grok-build, grok-build-0.1,
+  #     grok-composer-2.5-fast
+  #   `input: ["text","image"]` heisst Bild-EINGABE (Vision), nicht Erzeugung.
+  #   Direkter Aufruf: xai-oauth/grok-imagine       -> "Model not found"
+  #                    xai-oauth/grok-imagine-image-2.0 -> "Model not found"
+  #
+  # Grok Imagine ist ein eigenes Produkt hinter einem console.x.ai-Schluessel
+  # mit Abrechnung pro Stueck — also `billing: api`, ein weiterer metrierter
+  # Topf, und ausdruecklich NICHT vom Abo gedeckt.
+  #
+  #   grok-imagine-image-2.0   0,04 $ / Bild    POST /v1/images/generations
+  #   grok-imagine-video-1.5   0,080 $ / Sekunde POST /v1/videos/generations
+  #
+  # Eine sechs Sekunden lange Videosequenz kostet damit 0,48 $ — teurer als
+  # ein kompletter Opus-Lauf auf der L-Stufe (0,7577 $ nur knapp darueber) und
+  # 111x teurer als ein Flash-Lauf. Der alte Kommentar "Video ist die teuerste
+  # Spielwiese hier" ist damit belegt, nicht vermutet.
+  #
+  # BLEIBT ZURÜCKGESTELLT, aber aus einem anderen Grund als vorher: nicht
+  # weil unklar ist, ob es geht, sondern weil es einen neuen metrierten Topf
+  # und einen Schluessel braucht, und nichts daran haengt. Wird es gebraucht,
+  # gehoert es unter den Budgetdeckel und pro Aufruf gezaehlt.
+  media:
+    provider: xai-api                 # NICHT xai-oauth — anderer Zugang
+    model: grok-imagine-image-2.0
+    api_base: https://api.x.ai/v1
+    api_key_env: XAI_API_KEY          # fehlt in .env, absichtlich
+    billing: api
+    harness: null
+    status: deferred
+
+# ---------------------------------------------------------------------------
+constraints:
+
+  # `strong` und `reviewer` sollen nicht beim selben Anbieter landen, sonst
+  # bewertet dasselbe Modell seine eigene Arbeit — und das fällt nicht auf,
+  # weil es weiter "funktioniert", nur ohne den einzigen Zweck, den es hat.
+  # AUSGESETZT seit 2026-10-14, solange alles über Claude Code läuft; die
+  # Begründung steht bei `reviewer`.
+  - rule: reviewer_provider_differs_from_strong
+    on_violation: use_reviewer_fallback
+    suspended: true
+
+# ---------------------------------------------------------------------------
+# Harte Obergrenze für alles mit `billing: api`. Bei Erreichen meldet sich das
+# System über die Bridge, statt weiterzulaufen. Zweite, unabhängige Bremse:
+# das Ausgabenlimit im Anbieterkonto selbst — das greift auch dann, wenn der
+# Budgetwächter hier einen Fehler hat.
+budget:
+  daily_usd: 10.00
+  warn_at_pct: 70
+  on_limit: ask                     # stop | ask
+
+  # Selbstverbesserung bekommt ein eigenes Kontingent, damit sie den
+  # eigentlichen Zweck nie verdrängt. Eval-Läufe kosten für Arbeit, die
+  # nichts ausliefert — sichtbar getrennt, nicht versteckt.
+  self_improvement_pct: 20
+
+# Oberhalb dieses Schätzwerts fragt der Klassifizierer, statt zu handeln.
+# Der Regler zwischen Autonomie und Kontrolle: niedrig anfangen, hochziehen,
+# sobald die Vorschläge sichtbar taugen.
+ask_above_usd: 0.50
